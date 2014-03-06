@@ -98,7 +98,7 @@ namespace Chevron
             {
                 throw new Exception(string.Format("Could not find a template named '{0}'.", templateName));
             }
-            var expression = string.Format("chevronTemplate_{0}({1});", templateName, context);
+            var expression = string.Format("global.chevronTemplates['{0}']({1});", templateName, context);
             return (string) engine.Evaluate(expression);
         }
 
@@ -112,15 +112,21 @@ namespace Chevron
             templateName = templateName.ToLowerInvariant();
             if (!registeredTemplates.Contains(templateName))
             {
-                VariableNameValidator.ValidateSuffix(templateName);
                 registeredTemplates.Add(templateName);
-                var templateContent = content();
-                templateContent = SanitizeContent(templateContent);
-                var code = string.Format(
-                    @"var {0}_source = '{1}';
-var chevronTemplate_{0} = Handlebars.compile({0}_source);", templateName, templateContent);
-                engine.Execute(code);
             }
+
+            VariableNameValidator.ValidateSuffix(templateName);
+
+            var templateContent = content();
+            templateContent = SanitizeContent(templateContent);
+            var code = string.Format(@"var global = global || {{}};
+                !function() {{
+                  global.chevronTemplates = global.chevronTemplates || {{}};
+                  var src = '{0}';
+                  global.chevronTemplates['{1}'] = Handlebars.compile(src);
+                }}();", templateContent, templateName);
+
+            engine.Execute(code);
         }
 
         static string SanitizeContent(string templateContent)
